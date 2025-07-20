@@ -1,9 +1,10 @@
 let customFont;
-let magnetA, magnetB; // Vị trí của nam châm A và B trên trục x (world coordinates)
-let spherePos;       // Vị trí của quả cầu X trên trục x (world coordinates)
+let magnetA, magnetB; // positions of magnets A and B on the x-axis (world coordinates)
+let spherePos;       // position of sphere X on the x-axis (world coordinates)
+let initialDashedX;  // the fixed x-coordinate for the dashed line, captured at startup
 
 let draggingA = false, draggingB = false;
-let offsetA = 0, offsetB = 0; // Offset giữa vị trí nam châm và vị trí chuột khi bấm
+let offsetA = 0, offsetB = 0; // offset between a magnet’s position and the mouse when pressed
 
 function preload() {
   customFont = loadFont("Arial.ttf");
@@ -13,12 +14,15 @@ function setup() {
   createCanvas(windowWidth, windowHeight, WEBGL);
   textFont(customFont);
   textSize(16);
-  textAlign(CENTER, TOP);
+  textAlign(CENTER, CENTER);
   
-  // Khởi tạo các vị trí ban đầu (world coordinates)
+  // Initialize positions (world coordinates)
   magnetA = -100;
   spherePos = 0;
   magnetB = 200;
+  
+  // Capture the initial center of sphere X for the dashed line.
+  initialDashedX = spherePos;
   
   ambientLight(60);
   directionalLight(255, 255, 255, 0, 0, -1);
@@ -27,7 +31,7 @@ function setup() {
 function draw() {
   background(0);
   
-  // Cho phép xoay cảnh nếu không đang kéo nam châm
+  // Allow scene orbiting if not dragging either magnet
   if (!(draggingA || draggingB)) {
     orbitControl();
   }
@@ -35,73 +39,87 @@ function draw() {
   ambientLight(60);
   directionalLight(255, 255, 255, 0, 0, -1);
   
-  // Ràng buộc vị trí X của quả cầu X để không cho phép nó va chạm vào nam châm
+  // Constrain sphere X so that it does not overlap the magnets
   let minX = magnetA + 55;
   let maxX = magnetB - 80;
   spherePos = constrain(spherePos, minX, maxX);
 
   push();
-    // Vẽ magnet A với hiệu ứng ánh kim (metallic effect)
+    // Draw magnet A with a metallic effect
     push();
       translate(magnetA, 0, 0);
       stroke(0);
       strokeWeight(2);
-      // Hiệu ứng ánh kim cho A
       shininess(50);
       specularMaterial(200);
       box(50);
+      // Draw label A above the object
       push();
-        translate(0, 35, 0);
+        translate(0, -35, 0);
         noStroke();
-        // Dùng fill đơn giản cho chữ để nổi bật
         fill(255);
         text("A", 0, 0);
       pop();
     pop();
 
-    // Vẽ magnet B với hiệu ứng ánh kim (metallic effect)
+    // Draw magnet B with a metallic effect
     push();
       translate(magnetB, 0, 0);
       stroke(0);
       strokeWeight(2);
-      // Hiệu ứng ánh kim mạnh hơn cho B
       shininess(100);
       specularMaterial(220);
       box(100);
+      // Draw label B above the object
       push();
-        translate(0, 60, 0);
+        translate(0, -60, 0);
         noStroke();
         fill(255);
         text("B", 0, 0);
       pop();
     pop();
 
-    // Vẽ quả cầu X (giữ nguyên, không cần hiệu ứng ánh kim)
+    // Draw sphere X
     push();
       translate(spherePos, 0, 0);
       noStroke();
       fill(255, 0, 0);
       sphere(30);
+      // Draw label X above the sphere
       push();
-        translate(0, 40, 0);
+        translate(0, -40, 0);
         noStroke();
         fill(255);
         text("X", 0, 0);
       pop();
     pop();
+
+    // Draw the fixed dashed line:
+    // It will be drawn at the initial center of X (initialDashedX)
+    push();
+      translate(initialDashedX, 0, 0);
+      stroke(0, 255, 0);
+      strokeWeight(1); // thinner dashed line
+      // Use smaller dash segments for a finer dashed line
+      let dashLength = 5;
+      let gapLength = 5;
+      for (let y = -200; y < 200; y += dashLength + gapLength) {
+        line(0, y, 0, 0, y + dashLength, 0);
+      }
+    pop();
   pop();
 }
 
 function mousePressed() {
-  // Chuyển đổi mouseX từ tọa độ màn hình sang world coordinate (WEBGL có gốc ở giữa)
+  // Convert mouseX from screen coordinates to world coordinates (WEBGL's origin is at the center)
   let worldX = mouseX - width / 2;
   
-  // Kiểm tra xem chuột có bấm vào vùng tác dụng của nam châm A (bán kích thước ~25) hay không
+  // Check whether the mouse press is within magnet A's active area (approx. half-width = 25)
   if (abs(worldX - magnetA) < 25) {
     draggingA = true;
     offsetA = magnetA - worldX;
   } 
-  // Kiểm tra cho B (bán kích thước ~50)
+  // Else, check for magnet B (approx. half-width = 50)
   else if (abs(worldX - magnetB) < 50) {
     draggingB = true;
     offsetB = magnetB - worldX;
@@ -111,23 +129,21 @@ function mousePressed() {
 function mouseDragged() {
   let worldX = mouseX - width / 2;
   
-  // Cập nhật vị trí của nam châm A khi kéo, giữ nguyên offset ban đầu
+  // Update magnet A when dragging, keeping its initial offset
   if (draggingA) {
     let newMagnetA = worldX + offsetA;
-    // Đảm bảo A không vượt qua B
     if (newMagnetA > magnetB - 10) {
       newMagnetA = magnetB - 10;
     }
     let deltaA = newMagnetA - magnetA;
     magnetA = newMagnetA;
-    // Di chuyển quả cầu X theo hướng đối lập delta của A
+    // Adjust sphere X accordingly (moves oppositely to A's delta)
     spherePos = spherePos - deltaA;
   }
   
-  // Cập nhật vị trí của nam châm B khi kéo, giữ nguyên offset ban đầu
+  // Update magnet B when dragging, keeping its initial offset
   if (draggingB) {
     let newMagnetB = worldX + offsetB;
-    // Đảm bảo B không vượt qua A
     if (newMagnetB < magnetA + 10) {
       newMagnetB = magnetA + 10;
     }
